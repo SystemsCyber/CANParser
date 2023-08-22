@@ -1,0 +1,10 @@
+[package]
+name = "can_parser_cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+can_parser = { path = "../can_parser", features = ["debug", "parallel", "xlsx", "sqlite"]}
+clap = { version = "4.3.23", features = ["derive"] }

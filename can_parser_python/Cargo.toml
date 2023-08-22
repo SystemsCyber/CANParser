@@ -1,0 +1,17 @@
+[package]
+name = "can_parser_python"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "can_parser_python"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.19.0", features = ["experimental-inspect", "abi3", "abi3-py37"]}
+can_parser = { path = "../can_parser", features = ["parallel", "python", "debug", "sqlite"] }
+calamine = "0.19.1"
+regex = "1.7.1"
+serde_json = "1.0.93"
+crossbeam = "0.8.2"
