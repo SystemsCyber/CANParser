@@ -526,25 +526,27 @@ impl CANParser {
             }
             msg.data.len = (length / 2) as u8;
         }
-        if let (Some(id), Some(ref a)) = (captures.name("id"), annex) {
+        if let Some(id) = captures.name("id") {
             parse_id(id, &mut msg.id);
-            if msg.id.flags.ext {
-                let mut hit = false;
-                if let Some(cache_result) = spec.j1939.read().unwrap().get(&msg.id.pgn) {
-                    parse_j1939_data(&mut msg.data, &cache_result.spns);
-                    hit = true;
-                }
-                if !hit {
-                    if let Some(ref j1939) = a.j1939 {
-                        match j1939.get_id_metadata(&msg.id).map_err(|e| {
-                            format!("Failed to get metadata for PGN {}: {}", msg.id.pgn, e)
-                        })? {
-                            Metadata::J1939(aux) => {
-                                // Insert aux_info using a write lock.
-                                spec.j1939.write().unwrap().insert(msg.id.pgn, aux.clone());
-                                parse_j1939_data(&mut msg.data, &aux.spns);
+            if let Some(ref a) = annex {
+                if msg.id.flags.ext {
+                    let mut hit = false;
+                    if let Some(cache_result) = spec.j1939.read().unwrap().get(&msg.id.pgn) {
+                        parse_j1939_data(&mut msg.data, &cache_result.spns);
+                        hit = true;
+                    }
+                    if !hit {
+                        if let Some(ref j1939) = a.j1939 {
+                            match j1939.get_id_metadata(&msg.id).map_err(|e| {
+                                format!("Failed to get metadata for PGN {}: {}", msg.id.pgn, e)
+                            })? {
+                                Metadata::J1939(aux) => {
+                                    // Insert aux_info using a write lock.
+                                    spec.j1939.write().unwrap().insert(msg.id.pgn, aux.clone());
+                                    parse_j1939_data(&mut msg.data, &aux.spns);
+                                }
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
                 }
