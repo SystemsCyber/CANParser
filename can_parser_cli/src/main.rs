@@ -1,4 +1,4 @@
-use clap::{arg, builder::PossibleValue, Arg, ArgGroup, Command};
+use clap::{arg, builder::{PossibleValue, ArgPredicate}, Arg, ArgGroup, Command};
 use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
@@ -19,8 +19,8 @@ fn cli() -> Command {
         )
         .next_help_heading(Some("Input Options"))
         .args([
-            arg!(-f --file <FILE_PATH> "CAN log file to parse"),
-            arg!(-m --message <MSG> "Single CAN message to parse"),
+            arg!(-f --file <FILE_PATH> "CAN log file to parse."),
+            arg!(-m --message <MSG> "Single CAN message to parse."),
         ])
         .group(
             ArgGroup::new("parsing")
@@ -30,9 +30,11 @@ fn cli() -> Command {
         )
         .next_help_heading(Some("Parsing Options"))
         .args([
-            arg!(-t --template <TEMPLATE> "Regex template for parsing")
-                .value_parser([PossibleValue::new("candump").help("candump format")]),
-            arg!(-r --custom_regex <REGEX> "Custom regex expression"),
+            arg!(-t --template <TEMPLATE> "Regex template for parsing.")
+                .value_parser([PossibleValue::new("candump").help("candump format")])
+                .conflicts_with("custom_regex"),
+            arg!(-r --custom_regex <REGEX> "Custom regex expression. Must start with r\" and end with \".")
+                .conflicts_with("template"),
         ])
         .group(
             ArgGroup::new("specification")
@@ -46,14 +48,22 @@ fn cli() -> Command {
                 .short('s')
                 .long("specs")
                 .value_name("PATH")
-                .help("Comma separated list of specification files")
-                .value_delimiter(','),
+                .help("Comma separated list of Annex/Specification files. Length and order must match --spec_types.")
+                .value_delimiter(',')
+                .requires_if(ArgPredicate::IsPresent, "specs_types"),
             Arg::new("specs_types")
                 .short('S')
                 .long("specs_types")
                 .value_name("TYPE")
-                .help("Comma separated list of specification types")
-                .value_delimiter(','),
+                .help("Comma separated list of Annex/Specification types. Length and order must match --specs.")
+                .value_delimiter(',')
+                .value_parser([
+                    PossibleValue::new("can").help("CAN specification"),
+                    PossibleValue::new("j1939").help("J1939 specification"),
+                    PossibleValue::new("uds").help("UDS specification"),
+                    PossibleValue::new("transport").help("Transport specification"),
+                ])
+                .requires_if(ArgPredicate::IsPresent, "specs"),
         ])
         .group(
             ArgGroup::new("output options")
@@ -63,16 +73,17 @@ fn cli() -> Command {
         )
         .next_help_heading(Some("Output Options"))
         .args([
-            arg!(-o --output <PATH> "File path to write the results"),
+            arg!(-o --output <PATH> "File path to write the results. If not provided, results will be printed to stdout.")
+                .requires_if(ArgPredicate::IsPresent, "format"),
             Arg::new("force")
                 .long("force")
-                .help("Forcefully overwrite the output file if it exists")
+                .help("Forcefully overwrite the output file if it exists.")
                 .action(clap::ArgAction::SetTrue),
-            arg!(-'F' --format <FORMAT> "Output format").value_parser([
+            arg!(-'F' --format <FORMAT> "Output format. CSV format outputs the parsed artifacts in multiple files.").value_parser([
                 PossibleValue::new("json").help("JSON format"),
                 PossibleValue::new("csv").help("CSV format"),
                 PossibleValue::new("sqlite").help("SQLite format"),
-            ]),
+            ]).default_value("json"),
         ])
 }
 
@@ -108,16 +119,19 @@ fn write_results(matches: &clap::ArgMatches, parser: &mut CANParser) -> Result<(
             match matches.get_one::<String>("format") {
                 Some(format) => match format.as_str() {
                     "json" => {
+                        println!("Writing json file...");
                         parser
                             .to_json(Some(output.clone()))
                             .map_err(|e| format!("Error: {}", e))?;
                     }
                     "csv" => {
+                        println!("Writing csv file...");
                         parser
                             .to_csv(Some(output.clone()))
                             .map_err(|e| format!("Error: {}", e))?;
                     }
                     "sqlite" => {
+                        println!("Writing sqlite file...");
                         parser
                             .to_sqlite(output.clone())
                             .map_err(|e| format!("Error: {}", e))?;

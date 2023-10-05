@@ -1,9 +1,11 @@
+use crate::SpecSPN;
 use crate::can_message::CANMessage;
 use crate::error::CANParserError;
 use crate::specification::{FilteredSpec, SpecPGN};
 use csv::Writer;
 use std::collections::HashMap;
 use std::path::Path;
+use serde_json::{Map, Value};
 
 /// Converts the filtered CAN specification and messages to a CSV format.
 ///
@@ -41,6 +43,39 @@ pub fn to_csv(
     }
 }
 
+/// Converts the spns object in the PGN to an array of objects.
+///     
+/// # Arguments
+/// 
+/// * `pgn` - A mutable reference to a PGN object.
+/// 
+fn convert_spns_to_array(pgn: &mut Value, spec: bool) {
+    if let Some(pgn) = pgn.as_object_mut() {
+        if let Some(mut spns) = pgn.remove("spns") {
+            let mut spns_array = Vec::new();
+            let spns_obj = spns.as_object_mut().unwrap();
+            if spns_obj.len() == 0 {
+                if spec {
+                    spns_obj.insert("0".to_string(), serde_json::to_value(SpecSPN::default()).unwrap());
+                } else {
+                    spns_obj.insert("0".to_string(), Value::Null);
+                }
+            }
+            for (id, spn_value) in spns_obj {
+                let mut spn_obj = Map::new();
+                spn_obj.insert("id".to_string(), id.parse::<u16>().unwrap().into());
+                if spec {
+                    spn_obj.extend(spn_value.as_object().unwrap().clone());
+                } else {
+                    spn_obj.insert("value".to_string(), spn_value.clone());
+                }
+                spns_array.push(Value::Object(spn_obj));
+            }
+            pgn.insert("spns".to_string(), Value::Array(spns_array));
+        }
+    }
+} 
+
 /// Serializes a HashMap of SpecPGN to CSV format.
 ///
 /// # Arguments
@@ -54,23 +89,25 @@ fn serialize_to_csv(data: &HashMap<u16, SpecPGN>) -> Result<Vec<u8>, CANParserEr
     let mut wtr = Writer::from_writer(vec![]);
     let mut first = true;
     for (key, value) in data {
-        let value_json = serde_json::to_value(value)?;
+        let mut value_json = serde_json::to_value(value)?;
+        convert_spns_to_array(&mut value_json, true);
         let obj = value_json.as_object().ok_or_else(|| {
             CANParserError::ParserError("Failed to convert JSON to object".to_string())
         })?;
+        let obj = flatten_serde_json::flatten(obj);
         if first {
-            let mut headers = vec![];
-            headers.push("id".to_string());
+            let mut keys = vec![];
+            keys.push("id".to_string());
             for key in obj.keys() {
-                headers.push(key.clone());
+                keys.push(key.clone());
             }
-            wtr.write_record(&headers)?;
+            wtr.write_record(&keys)?;
             first = false;
         }
         let mut values = vec![];
         values.push(key.to_string());
         for value in obj.values() {
-            values.push(value.to_string());
+            values.push(value.to_string().replace("\"", ""));
         }
         wtr.write_record(&values)?;
     }
@@ -113,15 +150,18 @@ fn serialize_messages_to_csv(messages: &Vec<CANMessage>) -> Result<Vec<u8>, CANP
     let mut wtr = Writer::from_writer(vec![]);
     let mut first = true;
     for message in messages {
-        let value_json = serde_json::to_value(message)?;
+        let mut value_json = serde_json::to_value(message)?;
+        convert_spns_to_array(&mut value_json.get_mut("data").unwrap(), false);
         let obj = value_json.as_object().ok_or_else(|| {
             CANParserError::ParserError("Failed to convert to object".to_string())
         })?;
+        let obj = flatten_serde_json::flatten(obj);
         if first {
             wtr.write_record(obj.keys())?;
             first = false;
         }
-        wtr.write_record(obj.values().map(|v| v.to_string()))?;
+        
+        wtr.write_record(obj.values().map(|v| v.to_string().replace("\"", "")))?;
     }
     Ok(wtr.into_inner()?)
 }
@@ -159,6 +199,11 @@ fn save_to_files(
     output_path: &str,
 ) -> Result<(), CANParserError> {
     let output_path = Path::new(output_path);
+    if output_path.extension().is_none() {
+        return Err(CANParserError::ParserError(
+            "Output path must include file extension".to_string(),
+        ));
+    }
     for (key, value) in csv_collection {
         let mod_output_path = output_path.with_file_name(&format!(
             "{}_{}.{}",

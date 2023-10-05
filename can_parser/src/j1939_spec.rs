@@ -258,13 +258,13 @@ impl J1939Spec {
                 &mut aux_info.acronym,
                 10,
             );
-            aux_info.description = i.get(7).unwrap().get_string().unwrap().to_owned();
+            aux_info.description = i.get(7).unwrap().get_string().unwrap_or_default().to_owned();
             aux_info.pdu_format = i.get(10).unwrap().get_int().unwrap_or_default() as u8;
             aux_info.pdu_specific = i.get(11).unwrap().get_int().unwrap_or_default() as u8;
             aux_info.priority = i.get(15).unwrap().get_int().unwrap_or_default() as u8;
             aux_info.length = i.get(14).unwrap().get_int().unwrap_or_default() as u8;
             self.string_to_slice(
-                i.get(13).unwrap().get_string().unwrap().to_owned(),
+                i.get(13).unwrap().get_string().unwrap_or_default().to_owned(),
                 &mut aux_info.transmission_rate,
                 50,
             );

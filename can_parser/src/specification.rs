@@ -33,7 +33,7 @@ where
         return serializer.serialize_str("");
     }
     let str = std::str::from_utf8(array).map_err(serde::ser::Error::custom)?;
-    serializer.serialize_str(str.trim())
+    serializer.serialize_str(str.trim().replace("\"", "").as_str())
 }
 
 // Helpers for deserialization

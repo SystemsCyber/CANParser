@@ -19,6 +19,7 @@ can-dbc = "5.0.0"
 wasm-bindgen = { version = "0.2.87", optional = true }
 js-sys = { version = "0.3.64", optional = true }
 web-sys = { version = "0.3.64", features = ["console", "Performance", "Window", "WorkerGlobalScope"], optional = true }
+flatten-serde-json = "0.1.0"
 
 [features]
 parallel = ["rayon"]
