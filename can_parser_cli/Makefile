@@ -8,6 +8,8 @@ all: check_cross ## Compile for multiple platforms
 	cross build --release --target=i686-unknown-linux-gnu
 	# raspberry pi or beaglebone
 	cross build --release --target=armv7-unknown-linux-gnueabihf
+	# mac
+	cross build --release --target=x86_64-apple-darwin
 
 check_cross: ## Check if 'cross' is installed, if not install it
 	@if ! command -v cross &> /dev/null; then cargo install cross; fi
